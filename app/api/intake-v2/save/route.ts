@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import type { Prisma } from "@prisma/client"
+import type { InputJsonValue } from "@prisma/client/runtime/client"
 import { requireUserId } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 
@@ -57,7 +57,7 @@ export async function POST(req: Request) {
         intakeReport: {
           ...(sanitizedExisting as Record<string, unknown>),
           v2: sanitizedResult,
-        } as Prisma.InputJsonValue,
+        } as InputJsonValue,
       },
     })
 
