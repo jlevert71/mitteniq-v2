@@ -1,6 +1,7 @@
 // app/projects/[projectId]/intake/page.tsx
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
+import { prisma } from "@/lib/prisma"
 import IntakeClient from "./IntakeClient"
 
 export default async function ProjectIntakePage({
@@ -14,6 +15,8 @@ export default async function ProjectIntakePage({
   const auth = cookieStore.get("mitten-auth")
   if (!auth) redirect("/login")
 
+  const userId = auth.value
+
   const { projectId } = await params
   const sp = await searchParams
 
@@ -24,5 +27,14 @@ export default async function ProjectIntakePage({
     redirect(`/projects/${projectId}`)
   }
 
-  return <IntakeClient projectId={projectId} uploadId={uploadId} />
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, ownerId: userId },
+    select: { name: true },
+  })
+
+  if (!project) {
+    redirect("/projects")
+  }
+
+  return <IntakeClient projectId={projectId} uploadId={uploadId} projectName={project.name} />
 }

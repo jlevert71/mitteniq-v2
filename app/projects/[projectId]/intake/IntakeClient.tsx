@@ -246,7 +246,7 @@ function Badge({ label }: { label: string }) {
   )
 }
 
-export default function IntakeClient({ projectId, uploadId }: { projectId: string; uploadId: string }) {
+export default function IntakeClient({ projectId, uploadId, projectName }: { projectId: string; uploadId: string; projectName: string }) {
   const router = useRouter()
   const backHref = useMemo(() => `/projects/${projectId}`, [projectId])
 
@@ -491,7 +491,8 @@ export default function IntakeClient({ projectId, uploadId }: { projectId: strin
               ← Back to Project
             </Link>
           </div>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight">Intake</h1>
+          <div className="mt-2 text-xs uppercase tracking-wide text-white/50">Intake</div>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight">{projectName}</h1>
           <p className="mt-1 text-sm text-white/60">Analysis-only. Uploads happen on the Project page.</p>
           <div className="mt-2 text-xs opacity-60 font-mono break-all">uploadId: {uploadId}</div>
         </div>
@@ -510,20 +511,23 @@ export default function IntakeClient({ projectId, uploadId }: { projectId: strin
             <div className="text-sm opacity-70">File</div>
             <div className="mt-1 font-medium break-all">{meta?.filename ?? "—"}</div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Badge label={`Upload: ${meta?.status ?? "—"}`} />
-            <Badge label={`Intake: ${meta?.intakeStatus ?? "—"}`} />
-            {meta?.intakeStage && <Badge label={`Stage: ${meta.intakeStage}`} />}
-            <Badge label={`Pages: ${meta?.pageCount ?? "—"}`} />
-          </div>
-        </div>
-
-        <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-4 text-sm opacity-90">
-          {loading ? "Loading…" : statusLine}
-          {!loading && meta?.intakeStatus === "PROCESSING" && meta.intakeDelayReason && (
-            <div className="mt-2 text-xs text-white/50 leading-snug">{meta.intakeDelayReason}</div>
+          {meta?.intakeStatus !== "READY" && (
+            <div className="flex flex-wrap gap-2">
+              <Badge label={`Upload: ${meta?.status ?? "—"}`} />
+              <Badge label={`Intake: ${meta?.intakeStatus ?? "—"}`} />
+              {meta?.intakeStage && <Badge label={`Stage: ${meta.intakeStage}`} />}
+            </div>
           )}
         </div>
+
+        {meta?.intakeStatus !== "READY" && (
+          <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-4 text-sm opacity-90">
+            {loading ? "Loading…" : statusLine}
+            {!loading && meta?.intakeStatus === "PROCESSING" && meta.intakeDelayReason && (
+              <div className="mt-2 text-xs text-white/50 leading-snug">{meta.intakeDelayReason}</div>
+            )}
+          </div>
+        )}
 
         {error && (
           <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm">
