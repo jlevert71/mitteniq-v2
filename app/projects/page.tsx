@@ -3,6 +3,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 
 type Project = {
   id: string
@@ -92,6 +93,21 @@ async function deleteJson<T>(url: string): Promise<T> {
 }
 
 export default function ProjectsPage() {
+  const router = useRouter()
+  const [loggingOut, setLoggingOut] = useState(false)
+
+  async function logout() {
+    if (loggingOut) return
+    setLoggingOut(true)
+    try {
+      await fetch("/api/logout", { method: "POST" })
+    } catch {
+      // Even if the network call fails, push to /login so the user is out of the dashboard.
+    } finally {
+      router.push("/login")
+    }
+  }
+
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -199,12 +215,22 @@ export default function ProjectsPage() {
           </div>
         </div>
 
-        <button
-          onClick={openCreate}
-          className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10"
-        >
-          Create Project
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={openCreate}
+            className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10"
+          >
+            Create Project
+          </button>
+          <button
+            type="button"
+            onClick={logout}
+            disabled={loggingOut}
+            className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10 disabled:opacity-60"
+          >
+            {loggingOut ? "Logging out…" : "Log out"}
+          </button>
+        </div>
       </div>
 
       {error && (
