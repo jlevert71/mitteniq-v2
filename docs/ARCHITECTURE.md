@@ -27,6 +27,7 @@ V1 tried to be too smart. It built registries, reconciliation layers, multi-laye
 21. **Page size rule:** 11×17 or larger = drawing page, always, no exceptions. 8.5×11 and 8.5×14 = spec pages.
 22. **Airport projects** use FAA L-series spec structure, not CSI divisions. Bid schedule pre-populates quantities.
 23. **Combined spec+drawings PDF:** first page ≥ 11×17 marks where drawing section starts. Everything before = specs. Deterministic split, no text scanning needed.
+24. **`/api/uploads/analyze` is a status-flipper only.** It marks `intakeStatus: READY` after a successful upload. It does NOT run analysis. V2 intake runs lazily via `/api/intake-v2/test` when the user opens the Intake page. Adding analysis work to the analyze route would resurrect V1's eager-processing pattern.
 
 ## The Three Layers
 
