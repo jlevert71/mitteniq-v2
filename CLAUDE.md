@@ -5,17 +5,24 @@ Jim is not a software developer. He's an electrical estimator with 31 years in t
 
 All instructions and explanations must be **plain English, step-by-step**, written for someone who knows construction estimating cold but doesn't know JavaScript syntax.
 
+## Project Documentation
+
+This project uses three additional documentation files in /docs.
+Read all three before responding to any technical request:
+
+- **docs/CONTEXT.md** — Who Jim is, what MittenIQ is, tech stack, infrastructure
+- **docs/ARCHITECTURE.md** — V2 design philosophy, domain rules, prefix conventions, roadmap
+- **docs/PROJECT.md** — Current state, what's built and working, next priorities, known issues
+
 ## How to Deliver Code Changes
 
-### Cursor Prompt Format (Strictly Enforced)
-When Claude needs Jim to make code changes, Claude delivers the change as a **single fenced code block** that Jim copies into the Cursor agent. One tile, one copy button. Never split instructions and code across multiple blocks.
+### Code Change Format
+When Claude needs to make code changes, Claude proposes them as reviewable diffs directly in the editor. Before any code is changed, Claude:
+- Explains what is being changed and why, in plain English
+- Lists the files that will be touched
+- Describes the expected outcome and what to watch for if something goes wrong
 
-The Cursor prompt should be the complete, self-contained instruction set Cursor needs to execute the task — including:
-- Working directory
-- Files to read or modify
-- Exact edits with old/new line content
-- Verification steps (`tsc --noEmit`, `npm run build`, etc.)
-- A summary of what to report back
+Jim reviews each diff before accepting. Surgical, additive changes only — one purpose per change.
 
 ### Plain-English Explanation First
 Before any Cursor prompt, Claude explains:
@@ -78,12 +85,8 @@ Before declaring something "done":
 - Affected feature tested end-to-end in the browser
 - No new V1-style architecture introduced (registries, reconciliation layers, multi-layer confidence scoring)
 
-## Session Workflow
-At the start of each new conversation, Jim pastes:
-- `CONTEXT.md` (who, what, tech stack)
-- `ARCHITECTURE.md` (design rules, drawing intelligence, conventions)
-- `PROJECT.md` (current state, next priorities)
+## Session End Protocol
 
-Claude reads all three before asking what's needed.
-
-At the end of each session that produced material changes, Claude reminds Jim to update `PROJECT.md` — moving completed items, adding new known issues, refining next session priorities.
+When a session produces material changes, Claude reminds Jim to update
+docs/PROJECT.md — moving completed items to "What's Built and Working,"
+adding new known issues, and refining next session priorities.
