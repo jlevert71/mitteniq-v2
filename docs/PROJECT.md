@@ -107,6 +107,9 @@ Trimmed to immediate work — far-future items live in ARCHITECTURE.md Roadmap.
 - EJCDC running page header "Section 00 72 00" format not yet resolved in TOC tertiary resolution
 - CWSRF boilerplate sections have malformed stamps — not cleanly parseable
 - Next.js 16 deprecation warning: `middleware` file convention should become `proxy`. Not blocking — warning only. Clean up at some point.
+- Intake Report card shows no progress indicator while running (30-40s on typical specs). User can't tell if it's working or crashed. Same UX gap as pre-bid checklist progress messages — fix should reuse whatever progress pattern lands for SSE.
+- Per-page processing time on drawing PDFs is ~2.7x slower than on spec book pages (60 drawing pages scanned in 113s vs 87 spec pages scanned in 63s). Possibly pdfjs-dist text extraction overhead on large-format graphic-heavy pages. Worth investigating before drawing intake work begins, since drawing intake will process drawing pages as the primary path.
+- Pre-bid checklist agent produces silent confident wrong answers when run on drawing-only PDFs. Mt Pleasant Plans test (123 pages, 3 passes, 113s) returned fabricated values for Bid Due Date, Bid Due Time, Deliver Bid To, and Documents Available At — including an Autodesk Revit source path read from PDF metadata. Resolved architecturally by routing drawings to a separate intake pipeline (ARCHITECTURE.md decision #25) — pre-bid checklist won't be offered for drawing-only PDFs. No agent-level fix needed once routing is in place.
 
 ## Decisions Still Pending
 - Prime vs. sub role path — `biddingAs` field per project (would change pre-bid extraction logic)

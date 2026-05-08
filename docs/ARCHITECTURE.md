@@ -28,6 +28,8 @@ V1 tried to be too smart. It built registries, reconciliation layers, multi-laye
 22. **Airport projects** use FAA L-series spec structure, not CSI divisions. Bid schedule pre-populates quantities.
 23. **Combined spec+drawings PDF:** first page ≥ 11×17 marks where drawing section starts. Everything before = specs. Deterministic split, no text scanning needed.
 24. **`/api/uploads/analyze` is a status-flipper only.** It marks `intakeStatus: READY` after a successful upload. It does NOT run analysis. V2 intake runs lazily via `/api/intake-v2/test` when the user opens the Intake page. Adding analysis work to the analyze route would resurrect V1's eager-processing pattern.
+25. **Drawings and spec books route to separate intake pipelines.** Drawing-only PDFs use a sheet-based intake report (no pre-bid checklist, no spec-book agents). Spec-book PDFs use the existing spec intake plus the agent stack (pre-bid checklist, future Division 26 scope review, etc.). Combined PDFs split at the first 11×17+ page (decision #23) and each half routes to its own pipeline. The pre-bid checklist UI is not offered for drawing-only PDFs.
+26. **Addenda are handled as versioned snapshots, not in-place modifications.** Original bid set is preserved permanently and read-only. Each addendum produces a new full set ("Addendum N Set Dated MM-DD-YYYY") that references the latest version of every spec section and drawing sheet — some original, some addendum-replaced, some addendum-added. PDFs in R2 are immutable. Database tracks document versions and which addendum modified what. Mid-document modifications (e.g., "change 'copper' to 'aluminum' on page 3") are recorded as metadata flags on the affected document, not as PDF edits.
 
 ## The Three Layers
 
@@ -179,6 +181,37 @@ E family + D family (process, for scope context) + relevant C sheets (site plan)
 | MDOT 2020 Standard Specs reference + zero Div 26 TOC | MDOT highway | MDOT agent (future) |
 | Dam terminology + multi-site prefix convention | Dam/hydraulic | Dam pipeline (future) |
 
+## Addenda Handling
+
+Addenda muddy the waters on both specs and drawings, often arriving as a single mixed PDF (narrative + revised spec pages + revised sheets). The architecture handles this through versioned snapshots, not in-place edits.
+
+### Storage Model
+- Original bid set documents are stored in R2 once and never modified
+- Addendum-replaced documents are stored at separate R2 paths
+- Both versions exist simultaneously — nothing is deleted
+- Each "set" (Original, Addendum 1 Set, Addendum 2 Set, etc.) is a database record that references the correct version of each document
+
+### Document Modification Types
+- **Replacement** — full spec section or sheet replaced (most common)
+- **Addition** — new spec section or sheet added by addendum
+- **Deletion** — spec section or sheet deleted by addendum
+- **Mid-document modification** — a portion of a document changed (e.g., "page 3 paragraph 2.B"). PDF is not edited; metadata flag records the change with reference to the addendum narrative.
+
+### User Workflow
+- Estimator uploads original bid set → intake runs as normal
+- Estimator uploads addendum PDF → addendum agent (future) splits narrative from revised documents, identifies replacements/additions/deletions
+- New "Addendum N Set" is created in the database, referencing the correct version of each document
+- Estimator can view any historical set or jump to "current state"
+- Modified documents display "Modified by Addendum N on MM-DD-YYYY" with a "see original" option
+
+### Trust Model
+- Addendum narrative claims are trusted by default ("Section X is replaced" → replace it)
+- Rollback is always one click away
+- Original is never deleted, so a wrong addendum interpretation is recoverable
+
+### Sequencing
+Addenda support is built AFTER drawing intake exists, because addenda affect both pipelines. Drawing intake must establish the drawings-as-separate-pipeline pattern first.
+
 ## Key Architectural Rules
 1. Agents are stateless — one document in, one result out
 2. No document-wide intelligence in intake — that belongs in agents
@@ -205,7 +238,10 @@ These items are deliberately deferred. Not next session, not next month — but 
 - **Airport Electrical Agent** — FAA L-series pay item parser (post-Division 26 scope review)
 - **MDOT Electrical Agent** — Schedule of Items pay items parser, cross-references MDOT 2020 Standard Specs
 - **Dam/Hydraulic project pipeline** — handles multi-site prefix convention and CW/SG disciplines
-- **Drawing sheet index parser** — cover page parser for single drawing set PDFs
+- **Drawing intake pipeline** — separate from spec intake. Detects drawing-only PDFs via 11×17+ rule, parses sheet numbers and titles, classifies disciplines using the prefix tables in this doc, organizes sheets by discipline family.
+- **Drawing sheet index parser** — cover page parser for single drawing set PDFs. Deterministic pattern matching, no AI. Supports F&V, Fishbeck, C2AE, GEI, Wade Trim cover page formats.
+- **Drawing trade group bundling** — UI for grouping sheets into vendor packages (Electrical family, Process, Civil, etc.) with the ability to save and email grouped PDFs to subs and vendors. Default electrical sub package per ARCHITECTURE.md "Electrical Sub Default Vendor Package" rule.
+- **Addenda intake pipeline** — handles mixed addendum PDFs (narrative + revised specs + revised drawings). Splits content, identifies replacements/additions/deletions, creates new versioned set. Built after drawing intake
 - **Drawing discipline classifier implementation** — the architecture in this doc, built into code
 - **Background job architecture** — so scans don't get abandoned when user leaves page mid-run
 - **Real-time streaming progress via SSE** — replace the "all messages appear at end" UX
