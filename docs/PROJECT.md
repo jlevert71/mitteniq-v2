@@ -1,10 +1,10 @@
 # MittenIQ — Project State
-Last Updated: 2026-04-27 (Intake page polish + analyze route restored)
+Last Updated: 2026-05-15 (Real-time SSE streaming shipped for pre-bid checklist agent)
 
 ## Where We Are Right Now
 The V2 clean room migration is complete. The new repo at `github.com/jlevert71/mitteniq-v2` is the canonical codebase. The old repo is archived. mitteniq.com serves V2.
 
-Recent session shipped three small Intake page UX fixes and restored a route that was dropped during the migration.
+Most recent session shipped real-time SSE progress streaming for the pre-bid checklist agent — progress messages now appear live as the agent works rather than batching at the end, with 10-second heartbeat ticks filling the silent gaps during each ~28-30s OpenAI call. The implementation establishes a reusable heartbeat-during-AI-call design template for future long-running agents (Division 26 Scope Review, Chief Estimator, etc.).
 
 ## What's Built and Working
 
@@ -52,6 +52,10 @@ Recent session shipped three small Intake page UX fixes and restored a route tha
 - All 6 sections with editable fields, alerts, static notes
 - Auto-save/load
 - Progressive scan, dynamic char limits, deterministic post-processing
+- Real-time progress streaming via SSE — messages appear as the agent emits them, not batched at the end
+- 10-second heartbeat ticks during AI calls (rotating voiced messages: "Still working…", "Hang tight…", "Almost there…", "Still scanning, please stand by…", "Working through it…") fill the ~28-30s silent gap of each OpenAI call
+- Mid-stream re-run handling via reference-identity guard on the EventSource ref
+- Proper EventSource cleanup on unmount, completion, and error
 
 ### TOC Parser
 - Located in `lib/intake_v2/parse-toc.ts`
@@ -79,35 +83,28 @@ Recent session shipped three small Intake page UX fixes and restored a route tha
 ## Next Session Priorities
 Trimmed to immediate work — far-future items live in ARCHITECTURE.md Roadmap.
 
-1. **Real-time streaming progress via SSE for the pre-bid checklist agent.** Decision made to do this properly rather than fake progress messages. Two prerequisites before starting:
-   - Stopwatch a real run on a 900+ page spec book to know actual duration
-   - Confirm Vercel plan (Hobby = 60s max, Pro = 300s default / 800s configurable)
-   - If real runs exceed plan limit, must move to background job architecture instead of SSE
-   - Same pattern will be reused for Division 26 Scope Review Agent
+1. **Add `qualificationsRequired` and `dbeSbeGoalPercent` to DB schema and save logic.** These fields exist in types and UI but aren't being persisted yet.
 
-2. **Add `qualificationsRequired` and `dbeSbeGoalPercent` to DB schema and save logic.** These fields exist in types and UI but aren't being persisted yet.
+2. **Projects Dashboard polish.** Currently a flat list of cards. Discussion deferred from this session — design ideas TBD.
 
-3. **Projects Dashboard polish.** Currently a flat list of cards. Discussion deferred from this session — design ideas TBD.
+3. **TOC unresolved sections — Palmer 3A Juniper case.** Some sections are correctly identified in the TOC but get no PDF page link. Will block folder-separation feature when that arrives. Needs dedicated debug session with a real failing example.
 
-4. **TOC unresolved sections — Palmer 3A Juniper case.** Some sections are correctly identified in the TOC but get no PDF page link. Will block folder-separation feature when that arrives. Needs dedicated debug session with a real failing example.
-
-5. **Division 26 Scope Review Agent — second agent.** Located in `lib/agents/division-26-scope-review/` (not yet created). Uses TOC parser output to navigate directly to Division 26 sections. Features:
+4. **Division 26 Scope Review Agent — second agent.** Located in `lib/agents/division-26-scope-review/` (not yet created). Uses TOC parser output to navigate directly to Division 26 sections. Features:
    - Warranty extraction by spec section — flag >1 year, dollar impact warning
    - Scope items, exclusions, furnished-by-owner equipment
    - Special testing and commissioning requirements
    - RFQ language generation
 
-6. **Drawing sheet index parser** — cover page parser for single drawing set PDFs. Located in `lib/agents/drawing-index/` (not yet created). Deterministic pattern matching, no AI. Supports F&V, Fishbeck, C2AE, GEI, Wade Trim cover page formats.
+5. **Drawing sheet index parser** — cover page parser for single drawing set PDFs. Located in `lib/agents/drawing-index/` (not yet created). Deterministic pattern matching, no AI. Supports F&V, Fishbeck, C2AE, GEI, Wade Trim cover page formats.
 
 ## Known Issues / Open Problems
-- Progress messages show all at once after scan completes — fix planned via SSE (priority 1 above)
-- Some TOC sections correctly identified but missing PDF page link (priority 4)
+- Some TOC sections correctly identified but missing PDF page link (priority 3)
 - `qualificationsRequired` field added to types/extract but not yet in DB schema or save logic
 - `dbeSbeGoalPercent` field added to types/extract/UI but not yet in DB schema or save logic
 - EJCDC running page header "Section 00 72 00" format not yet resolved in TOC tertiary resolution
 - CWSRF boilerplate sections have malformed stamps — not cleanly parseable
 - Next.js 16 deprecation warning: `middleware` file convention should become `proxy`. Not blocking — warning only. Clean up at some point.
-- Intake Report card shows no progress indicator while running (30-40s on typical specs). User can't tell if it's working or crashed. Same UX gap as pre-bid checklist progress messages — fix should reuse whatever progress pattern lands for SSE.
+- Intake Report card shows no progress indicator while running (30-40s on typical specs). User can't tell if it's working or crashed. Apply the SSE + heartbeat pattern established for the pre-bid checklist agent (ARCHITECTURE.md #27).
 - Per-page processing time on drawing PDFs is ~2.7x slower than on spec book pages (60 drawing pages scanned in 113s vs 87 spec pages scanned in 63s). Possibly pdfjs-dist text extraction overhead on large-format graphic-heavy pages. Worth investigating before drawing intake work begins, since drawing intake will process drawing pages as the primary path.
 - Pre-bid checklist agent produces silent confident wrong answers when run on drawing-only PDFs. Mt Pleasant Plans test (123 pages, 3 passes, 113s) returned fabricated values for Bid Due Date, Bid Due Time, Deliver Bid To, and Documents Available At — including an Autodesk Revit source path read from PDF metadata. Resolved architecturally by routing drawings to a separate intake pipeline (ARCHITECTURE.md decision #25) — pre-bid checklist won't be offered for drawing-only PDFs. No agent-level fix needed once routing is in place.
 

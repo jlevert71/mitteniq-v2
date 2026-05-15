@@ -30,6 +30,7 @@ V1 tried to be too smart. It built registries, reconciliation layers, multi-laye
 24. **`/api/uploads/analyze` is a status-flipper only.** It marks `intakeStatus: READY` after a successful upload. It does NOT run analysis. V2 intake runs lazily via `/api/intake-v2/test` when the user opens the Intake page. Adding analysis work to the analyze route would resurrect V1's eager-processing pattern.
 25. **Drawings and spec books route to separate intake pipelines.** Drawing-only PDFs use a sheet-based intake report (no pre-bid checklist, no spec-book agents). Spec-book PDFs use the existing spec intake plus the agent stack (pre-bid checklist, future Division 26 scope review, etc.). Combined PDFs split at the first 11×17+ page (decision #23) and each half routes to its own pipeline. The pre-bid checklist UI is not offered for drawing-only PDFs.
 26. **Addenda are handled as versioned snapshots, not in-place modifications.** Original bid set is preserved permanently and read-only. Each addendum produces a new full set ("Addendum N Set Dated MM-DD-YYYY") that references the latest version of every spec section and drawing sheet — some original, some addendum-replaced, some addendum-added. PDFs in R2 are immutable. Database tracks document versions and which addendum modified what. Mid-document modifications (e.g., "change 'copper' to 'aluminum' on page 3") are recorded as metadata flags on the affected document, not as PDF edits.
+27. **Long-running agents use SSE with heartbeat-during-AI-call pattern for real-time progress.** Server agents accept an optional `onProgress?: (message: string) => void` callback. A dedicated SSE route (separate from the standard POST route) streams `event: message` per progress emission, fires 10-second heartbeat ticks during AI call silences using rotating voiced messages, sends `event: done` with the full result on completion, and `event: error` on exception. Frontend uses EventSource with reference-identity guards for mid-stream re-run safety and proper cleanup on unmount. Original POST routes remain untouched for backward compatibility. Pattern established by pre-bid checklist agent, to be reused for Division 26 Scope Review, future Chief Estimator agent, and other long-running agents.
 
 ## The Three Layers
 
@@ -244,7 +245,6 @@ These items are deliberately deferred. Not next session, not next month — but 
 - **Addenda intake pipeline** — handles mixed addendum PDFs (narrative + revised specs + revised drawings). Splits content, identifies replacements/additions/deletions, creates new versioned set. Built after drawing intake
 - **Drawing discipline classifier implementation** — the architecture in this doc, built into code
 - **Background job architecture** — so scans don't get abandoned when user leaves page mid-run
-- **Real-time streaming progress via SSE** — replace the "all messages appear at end" UX
 - **Prime vs sub role path** — `biddingAs` field per project, different pre-bid extraction logic
 - **Multi-file / batch upload UX** — needed for individual sheet PDF scenario
 - **Bid form agent** — low priority, far roadmap
