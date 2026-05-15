@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import {
   emptyPreBidChecklistFields,
   type PreBidChecklistFields,
@@ -96,9 +96,17 @@ export default function PreBidChecklist({ uploadId }: Props) {
   const [loadingSaved, setLoadingSaved] = useState(true)
   const [savedChecklistLoadedOnOpen, setSavedChecklistLoadedOnOpen] = useState(false)
   const [hasCompletedScan, setHasCompletedScan] = useState(false)
+  const eventSourceRef = useRef<EventSource | null>(null)
 
   const addProgress = useCallback((line: string) => {
     setProgressLines((prev) => [...prev, line])
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      eventSourceRef.current?.close()
+      eventSourceRef.current = null
+    }
   }, [])
 
   const loadSaved = useCallback(async () => {
@@ -181,49 +189,68 @@ export default function PreBidChecklist({ uploadId }: Props) {
     })
   }, [])
 
-  const runScan = useCallback(async () => {
+  const runScan = useCallback(() => {
+    // Close any prior stream (e.g., user clicked Re-run mid-stream)
+    eventSourceRef.current?.close()
+    eventSourceRef.current = null
+
     setLoading(true)
     setError(null)
     setProgressLines([])
     setFields(null)
     setMeta(null)
 
-    addProgress("⟳ Pass 1 — scanning bid documents, pages 1–60…")
+    const es = new EventSource(`/api/agents/pre-bid-checklist/stream?uploadId=${encodeURIComponent(uploadId)}`)
+    eventSourceRef.current = es
 
-    try {
-      const res = await fetch("/api/agents/pre-bid-checklist", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uploadId }),
-      })
-      const data = (await res.json()) as PreBidChecklistResult & { error?: string }
-
-      if (!res.ok) {
-        setError(typeof data.error === "string" ? data.error : `Request failed (${res.status})`)
-        return
-      }
-
-      if (data.meta) {
-        setMeta(data.meta)
-        if (data.meta.progressLog && data.meta.progressLog.length > 0) {
-          setProgressLines(data.meta.progressLog)
-        }
-      }
-
-      setFields(data.fields)
-
-      if (!data.ok && data.error) {
-        setError(data.error)
-      } else {
-        setHasCompletedScan(true)
-      }
-    } catch (e) {
-      console.error(e)
-      setError(e instanceof Error ? e.message : "Request failed")
-      addProgress("✗ Scan failed — see error message above.")
-    } finally {
+    const closeStream = () => {
+      es.close()
+      if (eventSourceRef.current === es) eventSourceRef.current = null
       setLoading(false)
     }
+
+    es.addEventListener("message", (ev) => {
+      const me = ev as MessageEvent
+      addProgress(me.data)
+    })
+
+    es.addEventListener("done", (ev) => {
+      const me = ev as MessageEvent
+      try {
+        const data = JSON.parse(me.data) as PreBidChecklistResult & { error?: string }
+        if (data.meta) setMeta(data.meta)
+        setFields(data.fields)
+        if (!data.ok && data.error) {
+          setError(data.error)
+        } else {
+          setHasCompletedScan(true)
+        }
+      } catch (e) {
+        console.error("pre-bid-checklist done parse", e)
+        setError("Failed to parse server response.")
+      } finally {
+        closeStream()
+      }
+    })
+
+    es.addEventListener("error", (ev) => {
+      // Ignore late connection-close errors that fire after we've already closed cleanly.
+      if (es.readyState === EventSource.CLOSED) return
+
+      const me = ev as MessageEvent
+      let msg = "Connection lost while scanning."
+      if (typeof me.data === "string" && me.data.length > 0) {
+        try {
+          const parsed = JSON.parse(me.data) as { error?: string }
+          msg = parsed.error ?? me.data
+        } catch {
+          msg = me.data
+        }
+      }
+      setError(msg)
+      addProgress("✗ Scan failed — see error message above.")
+      closeStream()
+    })
   }, [uploadId, addProgress])
 
   function downloadPdf() {

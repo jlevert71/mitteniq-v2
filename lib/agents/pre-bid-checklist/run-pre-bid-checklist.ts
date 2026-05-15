@@ -175,9 +175,10 @@ const PASS_MESSAGES = [
 export async function runPreBidChecklist(params: {
   uploadId: string
   r2Key: string
+  onProgress?: (message: string) => void
 }): Promise<PreBidChecklistResult> {
   const started = Date.now()
-  const { uploadId, r2Key } = params
+  const { uploadId, r2Key, onProgress } = params
   const extractedAt = new Date().toISOString()
   const progressLog: string[] = []
 
@@ -198,6 +199,9 @@ export async function runPreBidChecklist(params: {
         },
       }
     }
+
+    progressLog.push("⟳ Getting ready — reading document…")
+    onProgress?.("⟳ Getting ready — reading document…")
 
     const { buffer } = await readUploadBufferFromR2(r2Key)
     const allPages = await extractPdfPages(buffer)
@@ -222,14 +226,19 @@ export async function runPreBidChecklist(params: {
 
       if (passIndex === 0) {
         progressLog.push(`⟳ Pass 1 — scanning bid documents, pages 1–${cap}…`)
+        onProgress?.(`⟳ Pass 1 — scanning bid documents, pages 1–${cap}…`)
       } else {
         const msg = PASS_MESSAGES[passIndex]
-        if (msg) progressLog.push(msg)
+        if (msg) {
+          progressLog.push(msg)
+          onProgress?.(msg)
+        }
       }
 
       const result = await extractChecklistFields(text, uploadId)
       if (!result) {
         progressLog.push("✗ Extraction failed on this pass.")
+        onProgress?.("✗ Extraction failed on this pass.")
         break
       }
 
@@ -286,6 +295,7 @@ export async function runPreBidChecklist(params: {
 
       if (unresolved.length === 0) {
         progressLog.push(`✓ Complete — everything found in pass ${passesRun}. (${Date.now() - started}ms)`)
+        onProgress?.(`✓ Complete — everything found in pass ${passesRun}. (${Date.now() - started}ms)`)
         break
       }
 
@@ -294,7 +304,11 @@ export async function runPreBidChecklist(params: {
         progressLog.push(
           `⚠ Full document scanned — ${unresolved.length} field${unresolved.length !== 1 ? "s" : ""} not found anywhere.`,
         )
+        onProgress?.(
+          `⚠ Full document scanned — ${unresolved.length} field${unresolved.length !== 1 ? "s" : ""} not found anywhere.`,
+        )
         progressLog.push(`Manual review recommended: ${unresolved.join(", ")}`)
+        onProgress?.(`Manual review recommended: ${unresolved.join(", ")}`)
         break
       }
 
@@ -302,7 +316,11 @@ export async function runPreBidChecklist(params: {
         progressLog.push(
           `⚠ All passes complete — ${unresolved.length} field${unresolved.length !== 1 ? "s" : ""} still unresolved.`,
         )
+        onProgress?.(
+          `⚠ All passes complete — ${unresolved.length} field${unresolved.length !== 1 ? "s" : ""} still unresolved.`,
+        )
         progressLog.push(`Manual review recommended: ${unresolved.join(", ")}`)
+        onProgress?.(`Manual review recommended: ${unresolved.join(", ")}`)
       }
     }
 
